@@ -19,10 +19,10 @@ repos:
         language: system
         entry: isort
       - id: pylint-src
-        name: PyLint on ked_df/*
+        name: PyLint on kedro_dataframe_dropin/*
         types: [file, python]
         language: system
-        files: ^ked_df
+        files: ^kedro_dataframe_dropin
         entry: pylint
       - id: pylint-test
         name: PyLint on tests/*
