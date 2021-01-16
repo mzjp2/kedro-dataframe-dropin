@@ -51,11 +51,11 @@ to:
 ```yaml
 # conf/base/catalog.yml [after]
 rockets:
-    type: kedro_dataframe_dropin.modin.CSVDataSet
+    type: kedro_dataframe_dropin.rapids.CSVDataSet
     filepath: data/01_raw/rockets.csv
 
 reviews:
-    type: kedro_dataframe_dropin.rapids.ExcelDataSet
+    type: kedro_dataframe_dropin.modin.ExcelDataSet
     filepath: data/01_raw/reviews.xlsx
 ```
 
