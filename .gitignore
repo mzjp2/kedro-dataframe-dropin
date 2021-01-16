@@ -58,3 +58,6 @@ poetry.lock
 
 # Dask
 dask-worker-space
+
+# MacOS
+.DS_Store
