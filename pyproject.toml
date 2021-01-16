@@ -2,7 +2,15 @@
 name = "kedro-dataframe-dropin"
 version = "0.1.0"
 description = "A Kedro plugin to utilise pandas dropins (like cuDF or modin) in place of the pandas datasets"
+license = "MIT"
 authors = ["Zain Patel <zain.patel06@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/mzjp2/kedro-dataframe-dropin"
+repository = "https://github.com/mzjp2/kedro-dataframe-dropin"
+keywords = ["kedro", "rapids", "data", "gpu", "modin"]
+classifiers = [
+    "Framework :: Kedro"
+]
 
 [tool.poetry.dependencies]
 python = ">=3.7.1, <3.9"
