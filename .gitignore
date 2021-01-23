@@ -51,7 +51,7 @@ env.bak/
 venv.bak/
 
 # Poetry lockfile
-poetry.lock
+# poetry.lock
 
 # VScode
 .vscode
