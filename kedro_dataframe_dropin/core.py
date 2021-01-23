@@ -1,15 +1,23 @@
 """Core functionality for kedro_dataframe"""
+# pylint: disable=protected-access
 import importlib.util
 import types
-import warnings
-from contextlib import contextmanager
-from typing import List, Tuple
+from typing import List
 
-import fsspec
 import pandas
 from kedro.extras.datasets import pandas as kedro_pandas_module
 from kedro.extras.datasets.pandas import __all__ as dataset_class_names
 from kedro.io import AbstractDataSet
+
+DATASET_METHOD_MAPPINGS = {
+    "CSVDataSet": ["read_csv", "to_csv"],
+    "ExcelDataSet": ["read_excel", "to_excel"],
+    "FeatherDataSet": ["read_feather", "to_feather"],
+    "HDFDataSet": ["read_hdf", "to_hdf"],
+    "JSONDataSet": ["read_json", "to_json"],
+    "ParquetDataSet": ["read_parquet", "to_parquet"],
+    "ORCDataSet": ["read_orc", "to_orc"],
+}
 
 
 def _collect_dataset_modules() -> List[types.ModuleType]:
@@ -31,21 +39,7 @@ def _clone_dataset_modules() -> List[types.ModuleType]:
     return module_clones
 
 
-class FakeFilesystem:  # pylint: disable=too-few-public-methods
-    "A dummy dropin for an fsspec filesystem"
-
-    @staticmethod
-    @contextmanager
-    def open(path, **kwargs):
-        """A dummy dropin for an fsspec filesystem open method.
-        Forwards the path passed in rather than opening and reading in a buffer
-        """
-        if kwargs:
-            warnings.warn("Filesystem arguments provided, they will be ignored.")
-        yield path
-
-
-def patch_datasets(pandas_dropin: types.ModuleType) -> List[Tuple[str, type]]:
+def patch_datasets(pandas_dropin: types.ModuleType) -> List[AbstractDataSet]:
     """Given a pandas dropin module, this iterates through all Kedro pandas modules,
     swaps out pandas for the pandas dropin specified and then extracts out the
     dataset definitions and returns it as a list of tuples of dataset names to
@@ -72,19 +66,38 @@ def patch_datasets(pandas_dropin: types.ModuleType) -> List[Tuple[str, type]]:
     return patched_datasets
 
 
-def patch_dataset_filesystem(dataset: AbstractDataSet):
-    """Patches the use of fsspec in Kedro datasets to simply use the filepath
-    which modules like dask-cudf then use `fsspec` internally to read anyway.
-    This is because file handles are hard to pass across workers
-    (since they are not serializable) but filepaths are.
+# pylint: disable=unused-argument
+def patch_io_methods(
+    dataset: AbstractDataSet, module_dropin: types.ModuleType
+) -> AbstractDataSet:
+    """Patches the load and save methods for things like dask and dask_cudf
+    so that we bypass fsspec and instead pass the filepath straight to Dask
+    (which internally uses fsspec anyway) but benefits from the fact that
+    a string is serializable, and each Dask worker can read chunks of the file,
+    rather than a single fsspec file handle/buffer which cannot be shared across
+    processes/workers.
     """
-    original_dataset_init = dataset.__init__
+    if dataset.__name__ in ("SQLTableDataSet", "GBQTableDataSet"):
+        raise NotImplementedError("Datasets not supported yet")
 
-    def _fake_dataset_init(self, *args, **kwargs):
-        original_dataset_init(self, *args, **kwargs)
-        for attr_name, attr in self.__dict__.items():
-            if isinstance(attr, fsspec.AbstractFileSystem):
-                setattr(self, attr_name, FakeFilesystem)
+    load_method = DATASET_METHOD_MAPPINGS[dataset.__name__][0]
+    save_method = DATASET_METHOD_MAPPINGS[dataset.__name__][1]
 
-    dataset.__init__ = _fake_dataset_init
+    def _patched_load(self, *args, **kwargs):
+        if self._version:
+            raise ValueError("Does not work with versioning")
+        return getattr(module_dropin, load_method)(
+            self._filepath, storage_options=self._fs_open_args_load, **self._load_args
+        )
+
+    def _patched_save(self, data, *args, **kwargs):
+        if self._version:
+            raise ValueError("Does not work with versioning")
+        self._fs_open_args_save.pop("mode", None)
+        return getattr(data, save_method)(
+            self._filepath, storage_options=self._fs_open_args_save, **self._save_args
+        )
+
+    dataset._load = _patched_load
+    dataset._save = _patched_save
     return dataset
