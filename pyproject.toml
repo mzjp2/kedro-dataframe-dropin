@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kedro-dataframe-dropin"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Kedro plugin to utilise pandas dropins (like cuDF or modin) in place of the pandas datasets"
 license = "MIT"
 authors = ["Zain Patel <zain.patel06@gmail.com>"]
