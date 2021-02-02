@@ -63,12 +63,16 @@ and as long as the code within your nodes fits within `modin` or `cudf`'s implem
 
 ## What dropins are currently supported?
 
-| dropin      | supported |
-| ----------- | --------- |
-| modin[ray]  | ✅        |
-| modin[dask] | ✅        |
-| cudf        | ✅        |
-| dask        | ❌        |
+| dropin       | supported |
+| ------------ | --------- |
+| modin[ray]   | ✅        |
+| modin[dask]  | ✅        |
+| cudf         | ✅        |
+| dask         | 🟠        |
+| dask-cudf    | 🟠        |
+
+✅: compatible
+🟠: No kedro versioning and some datasets (like `SQLTableDataSet`) don't work despite being available on both `kedro` and the drop-in.
 
 ## What happens when Kedro adds or changes a `pandas` dataset?
 
@@ -117,6 +121,8 @@ In [6]: %timeit gdf["Total Revenue"].mean()
 2.71 ms ± 31.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 ```
 
+Any additional benchmarks you do and want to share back would be much appreciated. Feel free to open an issue!
+
 ## Some special notes on RAPIDS
 
 ### The rest of the `cu*` ecosystem
@@ -125,10 +131,22 @@ Your data processing step gets faster (assuming you have the right conditions) b
 
 You can continue to make use of your GPU speedup in the rest of your pipeline lifecycle (predictions, ML, graph, etc...) by using the rest of the `cuda` ecosystem of tools (`cuML` and the ilk) in place of tools like `sklearn`.
 
-### Why are some `cudf` data formats missing?
+### Why are some data formats missing?
 
 With the way this plugin was designed, it only hot swaps in `cudf` in place of `pandas` where the Kedro pandas dataset exists.
 
 So as it stands today, with the Kedro codebase not having an `ORCDataSet` for example, this plugin won't have it either. You'll need to build your own custom own.
 
 Or better yet, head over to the [Kedro](https;//github.com/quantumblacklabs/kedro) codebase and contribute the `pandas` version of it to their codebase. This plugin will then automatically pick it up and provide a `cudf`-equivalent.
+
+## Some special notes on `dask-cuDF` and `dask`
+
+Note that `dask` and `dask-cuDF` will delay compute and operations across nodes are actually building up a computation graph. They will be parallelised across your CPU/GPU when you invoke a `.compute()` operation (like `len` or save it to disk by having its output be a non-memory dataset in the catalog).
+
+Note that Kedro versioning won't be possible with these datasets, since Kedro completely owns the I/O and simply passes the file handle down to `dask`/`dask-cuDF` which doesn't accept it - since file handles can't be shared across (CPU or GPU) workers. Instead what we do is extract the filepath and pass it to `dask` who also use `fsspec` and so you still have full remote-layer interopability with the benefit of parallelised compute.
+
+Consider giving Matthew Rocklin's [blog post on `dask-cuDF`](http://matthewrocklin.com/blog/2019/01/13/dask-cudf-first-steps) and the philsophy of it simply being a different "engine" for `dask.DataFrame` a read.
+
+## Caveats
+
+Keep in mind that in order to remain consistent with the adage of not copying memory, when passing these dataframes between nodes, they _will not_ be copied - but simply passed through as the same underlying Python object, so if you're doing mutable operations on them across different nodes, keep in that in mind.
